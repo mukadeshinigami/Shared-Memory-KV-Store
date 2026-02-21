@@ -1,0 +1,19 @@
+# Бинарники
+build/
+*.o
+*.out
+
+# Shared memory объекты (для тестирования)
+/dev/shm/gitflow_kv_store
+
+# Временные файлы
+*.swp
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Cursor rules
+.cursorrules
