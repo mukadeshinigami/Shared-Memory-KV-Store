@@ -1,53 +1,120 @@
 #include "shared_memory_kv.h"
 
 /**
- * Creates a new shared memory object for KV store
- * 
+ * Creates a new shared memory object for the KV store
+ *
  * This function creates a new shared memory object, allocates memory,
- * initializes semaphore and data structures.
- * 
- * @param shm_fd_out Pointer to return shared memory file descriptor
- *                   (needed for subsequent close/removal)
- * @return Pointer to shm_kv_store_t structure in shared memory, or NULL on error
- * 
- * @note After use, must call shm_kv_destroy() for cleanup
- * @note If object already exists, function returns NULL (use shm_kv_open())
+ * initializes the semaphore, and initializes the data structures.
+ *
+ * @param shared_memory_file_descriptor_out Pointer to return the shared memory
+ * file descriptor (output parameter) (required for later closing/deletion)
+ * @return Pointer to shared_memory_kv_store_t structure in shared memory, or
+ * NULL on error
+ *
+ * @note shared_memory_kv_destroy() must be called after use for cleanup
+ * @note If the object already exists, the function returns NULL (use
+ * shared_memory_kv_open())
  */
-shared_memory_kv_store_t* shared_memory_kv_create(int* shared_memory_file_descriptor_out) {
-    // Step 1: Create shared memory object
-    // O_CREAT - create if doesn't exist
-    // O_EXCL - return error if already exists (protection from overwrite)
-    // O_RDWR - read and write mode
-    // S_IRUSR | S_IWUSR - access rights: read and write for owner
-    int shared_memory_file_descriptor = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-    
-    if (shared_memory_file_descriptor == -1) {
-        perror("shm_open failed");
-        return NULL;
-    }
-    
-    // Save descriptor for return
-    if (shared_memory_file_descriptor_out != NULL) {
-        *shared_memory_file_descriptor_out = shared_memory_file_descriptor;
-    }
-    
-    // Step 2: Set size of shared memory object
-    // ftruncate sets file/object size
-    // Important: shm_open creates object with size 0, need to explicitly set size
-    // Size must be equal to sizeof(shared_memory_kv_store_t) - size of our structure
-    if (ftruncate(shared_memory_file_descriptor, sizeof(shared_memory_kv_store_t)) == -1) {
-        perror("ftruncate failed");
-        // If ftruncate failed, need to close descriptor and return error
-        close(shared_memory_file_descriptor);
-        // Also need to remove object, as it's already created but incomplete
-        shm_unlink(SHM_NAME);
-        return NULL;
-    }
-    
-    // TODO: Step 3 - mmap for memory mapping
-    // TODO: Step 4 - sem_init for semaphore initialization
-    // TODO: Step 5 - Initialize structure fields
-    
-    return NULL; // Temporary stub
-}
+shared_memory_kv_store_t *
+shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
+  // Step 1: Create the shared memory object
+  // O_CREAT - create if it doesn't exist
+  // O_EXCL - return error if already exists (overwrite protection)
+  // O_RDWR - read and write mode
+  // S_IRUSR | S_IWUSR - permissions: read and write for the owner
+  int shared_memory_file_descriptor =
+      shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
 
+  if (shared_memory_file_descriptor == -1) {
+    perror("shm_open failed");
+    return NULL;
+  }
+
+  // Save the descriptor to return it
+  if (shared_memory_file_descriptor_out != NULL) {
+    *shared_memory_file_descriptor_out = shared_memory_file_descriptor;
+  }
+
+  // Step 2: Set the shared memory object size
+  // ftruncate sets the size of the file/object
+  // Important: shm_open creates an object with size 0, so size must be
+  // explicitly set Size should be equal to sizeof(shared_memory_kv_store_t)
+  if (ftruncate(shared_memory_file_descriptor,
+                sizeof(shared_memory_kv_store_t)) == -1) {
+    perror("ftruncate failed");
+    // If ftruncate fails, close the descriptor and return an error
+    close(shared_memory_file_descriptor);
+    // Also need to unlink the object as it was created but is incomplete
+    shm_unlink(SHM_NAME);
+    return NULL;
+  }
+
+  // Step 3: Map shared memory into the process address space
+  // mmap creates a virtual mapping of the shared memory object into process
+  // memory After mmap, we can work with shared memory via a pointer like a
+  // regular structure
+  //
+  // Parameters:
+  // - NULL: the kernel will choose the mapping address
+  // - sizeof(shared_memory_kv_store_t): mapping size (must match ftruncate
+  // size)
+  // - PROT_READ | PROT_WRITE: allow read and write
+  // - MAP_SHARED: changes are visible to other processes (important for IPC!)
+  // - shared_memory_file_descriptor: descriptor from shm_open
+  // - 0: offset from the start of the object (map from the beginning)
+  shared_memory_kv_store_t *store =
+      mmap(NULL, // address (NULL = kernel will choose)
+           sizeof(shared_memory_kv_store_t), // size
+           PROT_READ | PROT_WRITE,           // access rights
+           MAP_SHARED,                       // flags (shared between processes)
+           shared_memory_file_descriptor,    // file descriptor
+           0                                 // offset
+      );
+
+  // Error check: mmap returns MAP_FAILED (usually (void*)-1) on error
+  if (store == MAP_FAILED) {
+    perror("mmap failed");
+
+    close(shared_memory_file_descriptor);
+    shm_unlink(SHM_NAME);
+    return NULL;
+  }
+
+  // Step 4: Initialize structure fields
+  // After mmap, memory may contain garbage, so all fields must be explicitly
+  // initialized
+  //
+  // memset clears memory: sets all bytes to 0
+  // This ensures that:
+  // - All strings in kv_table will start with '\0' (empty)
+  // - All timestamps will be 0
+  // - version and entry_count will be 0
+  memset(store, 0, sizeof(shared_memory_kv_store_t));
+
+  // Explicit field initialization for clarity (though memset already cleared
+  // them) This makes the code more readable and explicitly shows initial values
+  store->version = 0;     // Initial data version
+  store->entry_count = 0; // Initial entry count (table is empty)
+
+  // Step 5: Initialize the semaphore for synchronization
+  // sem_init initializes the semaphore for inter-process synchronization
+  // Important: do this AFTER memset so the semaphore is initialized in clean
+  // memory
+  //
+  // Parameters:
+  // - &store->sem: pointer to the semaphore in the structure (in shared memory)
+  // - 1 (pshared): "shared" flag - semaphore will be accessible between
+  // processes
+  //   (0 = current process only, 1 = between processes via shared memory)
+  // - 1 (value): initial semaphore value (1 = semaphore is free, can be taken)
+  //   Used as a mutex: 1 = unlocked, 0 = locked
+  if (sem_init(&store->sem, 1, 1) == -1) {
+    perror("sem_init failed");
+    munmap(store, sizeof(shared_memory_kv_store_t));
+    close(shared_memory_file_descriptor);
+    shm_unlink(SHM_NAME);
+    return NULL;
+  }
+
+  return store; // Return pointer to the structure in shared memory
+}
