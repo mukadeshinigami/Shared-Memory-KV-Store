@@ -1,29 +1,27 @@
 #include "shared_memory_kv.h"
 
 /**
- * Создает новый объект общей памяти для KV-хранилища
+ * Creates a new shared memory object for the KV store
  *
- * Эта функция создает новый объект общей памяти, выделяет память,
- * инициализирует семафор и структуры данных.
+ * This function creates a new shared memory object, allocates memory,
+ * initializes the semaphore, and initializes the data structures.
  *
- * @param shared_memory_file_descriptor_out Указатель для возврата дескриптора
- * файла общей памяти (выходной параметр) (необходим для последующего
- * закрытия/удаления)
- * @return Указатель на структуру shared_memory_kv_store_t в общей памяти, или
- * NULL в случае ошибки
+ * @param shared_memory_file_descriptor_out Pointer to return the shared memory
+ * file descriptor (output parameter) (required for later closing/deletion)
+ * @return Pointer to shared_memory_kv_store_t structure in shared memory, or
+ * NULL on error
  *
- * @note После использования необходимо вызвать shared_memory_kv_destroy() для
- * очистки ресурсов
- * @note Если объект уже существует, функция возвращает NULL (используйте
+ * @note shared_memory_kv_destroy() must be called after use for cleanup
+ * @note If the object already exists, the function returns NULL (use
  * shared_memory_kv_open())
  */
 shared_memory_kv_store_t *
 shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
-  // Шаг 1: Создание объекта общей памяти
-  // O_CREAT - создать, если не существует
-  // O_EXCL - вернуть ошибку, если уже существует (защита от перезаписи)
-  // O_RDWR - режим чтения и записи
-  // S_IRUSR | S_IWUSR - права доступа: чтение и запись для владельца
+  // Step 1: Create the shared memory object
+  // O_CREAT - create if it doesn't exist
+  // O_EXCL - return error if already exists (overwrite protection)
+  // O_RDWR - read and write mode
+  // S_IRUSR | S_IWUSR - permissions: read and write for the owner
   int shared_memory_file_descriptor =
       shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
 
@@ -32,50 +30,48 @@ shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
     return NULL;
   }
 
-  // Сохраняем дескриптор для возврата
+  // Save the descriptor to return it
   if (shared_memory_file_descriptor_out != NULL) {
     *shared_memory_file_descriptor_out = shared_memory_file_descriptor;
   }
 
-  // Шаг 2: Установка размера объекта общей памяти
-  // ftruncate устанавливает размер файла/объекта
-  // Важно: shm_open создает объект размером 0, поэтому размер должен быть
-  // установлен явно. Размер должен быть равен sizeof(shared_memory_kv_store_t)
+  // Step 2: Set the shared memory object size
+  // ftruncate sets the size of the file/object
+  // Important: shm_open creates an object with size 0, so size must be
+  // explicitly set. Size should be equal to sizeof(shared_memory_kv_store_t)
   if (ftruncate(shared_memory_file_descriptor,
                 sizeof(shared_memory_kv_store_t)) == -1) {
     perror("ftruncate failed");
-    // Если ftruncate не удался, закрываем дескриптор и возвращаем ошибку
+    // If ftruncate fails, close the descriptor and return an error
     close(shared_memory_file_descriptor);
-    // Также нужно удалить объект (unlink), так как он был создан, но не
-    // завершен
+    // Also need to unlink the object as it was created but is incomplete
     shm_unlink(SHM_NAME);
     return NULL;
   }
 
-  // Шаг 3: Отображение общей памяти в адресное пространство процесса
-  // mmap создает виртуальное отображение объекта общей памяти в память
-  // процесса. После mmap мы можем работать с общей памятью через указатель, как
-  // с обычной структурой.
+  // Step 3: Map shared memory into the process address space
+  // mmap creates a virtual mapping of the shared memory object into process
+  // memory. After mmap, we can work with shared memory via a pointer like a
+  // regular structure.
   //
-  // Параметры:
-  // - NULL: ядро само выберет адрес отображения
-  // - sizeof(shared_memory_kv_store_t): размер отображения (должен совпадать с
-  //   размером ftruncate)
-  // - PROT_READ | PROT_WRITE: разрешить чтение и запись
-  // - MAP_SHARED: изменения видны другим процессам (важно для IPC!)
-  // - shared_memory_file_descriptor: дескриптор от shm_open
-  // - 0: смещение от начала объекта (отображаем с самого начала)
+  // Parameters:
+  // - NULL: the kernel will choose the mapping address
+  // - sizeof(shared_memory_kv_store_t): mapping size (must match ftruncate
+  //   size)
+  // - PROT_READ | PROT_WRITE: allow read and write
+  // - MAP_SHARED: changes are visible to other processes (important for IPC!)
+  // - shared_memory_file_descriptor: descriptor from shm_open
+  // - 0: offset from the start of the object (map from the beginning)
   shared_memory_kv_store_t *store =
-      mmap(NULL,                             // адрес (NULL = ядро само выберет)
-           sizeof(shared_memory_kv_store_t), // размер
-           PROT_READ | PROT_WRITE,           // права доступа
-           MAP_SHARED,                       // флаги (общая для процессов)
-           shared_memory_file_descriptor,    // файловый дескриптор
-           0                                 // смещение
+      mmap(NULL, // address (NULL = kernel will choose)
+           sizeof(shared_memory_kv_store_t), // size
+           PROT_READ | PROT_WRITE,           // access rights
+           MAP_SHARED,                       // flags (shared between processes)
+           shared_memory_file_descriptor,    // file descriptor
+           0                                 // offset
       );
 
-  // Проверка ошибок: mmap возвращает MAP_FAILED (обычно (void*)-1) в случае
-  // ошибки
+  // Error check: mmap returns MAP_FAILED (usually (void*)-1) on error
   if (store == MAP_FAILED) {
     perror("mmap failed");
 
@@ -84,34 +80,35 @@ shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
     return NULL;
   }
 
-  // Шаг 4: Инициализация полей структуры
-  // После mmap память может содержать "мусор", поэтому все поля должны быть
-  // явно инициализированы.
+  // Step 4: Initialize structure fields
+  // After mmap, memory may contain garbage, so all fields must be explicitly
+  // initialized.
   //
-  // memset очищает память: устанавливает все байты в 0.
-  // Это гарантирует, что:
-  // - Все строки в kv_table будут начинаться с '\0' (пустые)
-  // - Все временные метки будут равны 0
-  // - version и entry_count будут равны 0
+  // memset clears memory: sets all bytes to 0.
+  // This ensures that:
+  // - All strings in kv_table will start with '\0' (empty)
+  // - All timestamps will be 0
+  // - version and entry_count will be 0
   memset(store, 0, sizeof(shared_memory_kv_store_t));
 
-  // Явная инициализация полей для ясности (хотя memset уже очистил их).
-  // Это делает код более читаемым и явно показывает начальные значения.
-  store->version = 0;     // Начальная версия данных
-  store->entry_count = 0; // Начальное количество записей (таблица пуста)
+  // Explicit field initialization for clarity (though memset already cleared
+  // them). This makes the code more readable and explicitly shows initial
+  // values.
+  store->version = 0;     // Initial data version
+  store->entry_count = 0; // Initial entry count (table is empty)
 
-  // Шаг 5: Инициализация семафора для синхронизации
-  // sem_init инициализирует семафор для межпроцессной синхронизации.
-  // Важно: делайте это ПОСЛЕ memset, чтобы семафор инициализировался в чистой
-  // памяти.
+  // Step 5: Initialize the semaphore for synchronization
+  // sem_init initializes the semaphore for inter-process synchronization.
+  // Important: do this AFTER memset so the semaphore is initialized in clean
+  // memory.
   //
-  // Параметры:
-  // - &store->sem: указатель на семафор в структуре (в общей памяти)
-  // - 1 (pshared): флаг "shared" - семафор будет доступен между процессами
-  //   (0 = только текущий процесс, 1 = между процессами через общую память)
-  // - 1 (value): начальное значение семафора (1 = семафор свободен, можно
-  // занять)
-  //   Используется как мьютекс: 1 = разблокирован, 0 = заблокирован
+  // Parameters:
+  // - &store->sem: pointer to the semaphore in the structure (in shared memory)
+  // - 1 (pshared): "shared" flag - semaphore will be accessible between
+  // processes
+  //   (0 = current process only, 1 = between processes via shared memory)
+  // - 1 (value): initial semaphore value (1 = semaphore is free, can be taken)
+  //   Used as a mutex: 1 = unlocked, 0 = locked
   if (sem_init(&store->sem, 1, 1) == -1) {
     perror("sem_init failed");
     munmap(store, sizeof(shared_memory_kv_store_t));
@@ -120,37 +117,37 @@ shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
     return NULL;
   }
 
-  return store; // Возвращаем указатель на структуру в общей памяти
+  return store; // Return pointer to the structure in shared memory
 }
 
 /**
- * Открывает существующий объект общей памяти для KV-хранилища
+ * Opens an existing shared memory object for the KV store
  *
- *SHM_NAME - имя объекта общей памяти
- *O_RDWR - режим чтения и записи
- *S_IRUSR | S_IWUSR - права доступа: чтение и запись для владельца
- *MAP_SHARED - флаги (общая для процессов)
- *shared_memory_file_descriptor - файловый дескриптор
- *0 - смещение от начала объекта (отображаем с самого начала)
-
- * @param shared_memory_file_descriptor_out Указатель для возврата дескриптора
- * файла общей памяти
- * @return Указатель на структуру shared_memory_kv_store_t в общей памяти, или
- * NULL на случай ошибки
+ * @param shared_memory_file_descriptor_out Pointer to return the shared memory
+ * file descriptor
+ * @return Pointer to shared_memory_kv_store_t structure in shared memory, or
+ * NULL on error
  */
-shared_memory_kv_store_t * shared_memory_kv_open(int *shared_memory_file_descriptor_out) {
+shared_memory_kv_store_t *
+shared_memory_kv_open(int *shared_memory_file_descriptor_out) {
+  // Step 1: Open existing shared memory object
+  // O_RDWR - read and write mode
   int shared_memory_file_descriptor = shm_open(SHM_NAME, O_RDWR, 0);
 
   if (shared_memory_file_descriptor == -1) {
     perror("shm_open failed");
-    return NULL;  
+    return NULL;
   }
 
+  // Save descriptor if requested
   if (shared_memory_file_descriptor_out != NULL) {
     *shared_memory_file_descriptor_out = shared_memory_file_descriptor;
   }
 
-  shared_memory_kv_store_t *store = mmap(NULL, sizeof(shared_memory_kv_store_t), PROT_READ | PROT_WRITE, MAP_SHARED, shared_memory_file_descriptor, 0);
+  // Step 2: Map shared memory into process address space
+  shared_memory_kv_store_t *store =
+      mmap(NULL, sizeof(shared_memory_kv_store_t), PROT_READ | PROT_WRITE,
+           MAP_SHARED, shared_memory_file_descriptor, 0);
   if (store == MAP_FAILED) {
     perror("mmap failed");
     close(shared_memory_file_descriptor);
@@ -166,30 +163,53 @@ shared_memory_kv_store_t * shared_memory_kv_open(int *shared_memory_file_descrip
  * @param shared_memory_file_descriptor File descriptor of shared memory
  * @param store Pointer to mapped shared memory region
  */
-void shared_memory_kv_destroy(int shared_memory_file_descriptor, shared_memory_kv_store_t *store) {
-    // Step 1: Unmap shared memory from process address space
-    // Check for NULL pointer before using it
-    if (store != NULL) {
-        if (munmap(store, sizeof(shared_memory_kv_store_t)) == -1) {
-            perror("munmap failed");
-            // Continue cleanup even if munmap fails
-        }
+void shared_memory_kv_destroy(int shared_memory_file_descriptor,
+                              shared_memory_kv_store_t *store) {
+  // Step 1: Unmap shared memory from process address space
+  // Check for NULL pointer before using it
+  if (store != NULL) {
+    if (munmap(store, sizeof(shared_memory_kv_store_t)) == -1) {
+      perror("munmap failed");
+      // Continue cleanup even if munmap fails
     }
+  }
 
-    // Step 2: Close file descriptor
-    // Check for invalid descriptor before using it
-    if (shared_memory_file_descriptor != -1) {
-        if (close(shared_memory_file_descriptor) == -1) {
-            perror("close failed");
-        }
+  // Step 2: Close file descriptor
+  // Check for invalid descriptor before using it
+  if (shared_memory_file_descriptor != -1) {
+    if (close(shared_memory_file_descriptor) == -1) {
+      perror("close failed");
     }
+  }
 
-    // Note: We do NOT call sem_destroy() here because:
-    // - Semaphore is in shared memory and will be destroyed when object is unlinked
-    // - Multiple processes should not destroy the same semaphore
-    //
-    // Note: We do NOT call shm_unlink() here because:
-    // - Only the creator (producer) should unlink the object
-    // - shm_unlink() should be called separately by producer when shutting down
+  // Note: We do NOT call sem_destroy() here because:
+  // - Semaphore is in shared memory and will be destroyed when object is
+  // unlinked
+  // - Multiple processes should not destroy the same semaphore
+  //
+  // Note: We do NOT call shm_unlink() here because:
+  // - Only the creator (producer) should unlink the object
+  // - shm_unlink() should be called separately by producer when shutting down
 }
-    
+
+/**
+ * Unlinks (removes) the shared memory object from the system
+ *
+ * This should be called ONLY by the creator process (producer)
+ * when shutting down. After unlinking, the object will be removed
+ * when all processes close their references to it.
+ *
+ * @return 0 on success, -1 on error
+ * @note This function should be called after all processes have
+ * called shared_memory_kv_destroy()
+ */
+int shared_memory_kv_unlink(void) {
+  if (shm_unlink(SHM_NAME) == -1) {
+    if (errno == ENOENT) {
+      return 0;
+    }
+    perror("shm_unlink failed");
+    return -1;
+  }
+  return 0;
+}
