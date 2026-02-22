@@ -1,7 +1,7 @@
 #ifndef SHM_KV_H
 #define SHM_KV_H
 
-// Required header files for shared memory and synchronization
+// Необходимые заголовочные файлы для работы с общей памятью и синхронизацией
 #include <errno.h>     // errno
 #include <fcntl.h>     // O_CREAT, O_RDWR, O_RDONLY
 #include <semaphore.h> // sem_t, sem_init, sem_wait, sem_post, sem_destroy
@@ -10,93 +10,95 @@
 #include <stdlib.h>    // exit, EXIT_SUCCESS, EXIT_FAILURE
 #include <string.h>    // memset, strncpy, strnlen
 #include <sys/mman.h>  // mmap, munmap, shm_open, shm_unlink
-#include <sys/stat.h>  // Access modes (S_IRUSR, S_IWUSR, etc.)
+#include <sys/stat.h>  // Режимы доступа (S_IRUSR, S_IWUSR и т.д.)
 #include <time.h>      // time_t, time()
 #include <unistd.h>    // ftruncate, close
 
 // ============================================================================
-// CONSTANTS
+// КОНСТАНТЫ
 // ============================================================================
 
-// Shared memory object name
-// Important: must start with "/" for POSIX shared memory
-// A file will be created in /dev/shm/gitflow_kv_store
+// Имя объекта общей памяти
+// Важно: должно начинаться с "/" для POSIX shared memory
+// Файл будет создан в /dev/shm/gitflow_kv_store
 #define SHM_NAME "/gitflow_kv_store"
 
-// Maximum number of KV pairs in the table
-// Fixed size for implementation simplicity
+// Максимальное количество пар ключ-значение в таблице
+// Фиксированный размер для упрощения реализации
 #define MAX_ENTRIES 10
 
-// Field sizes (fixed for simplicity)
-// Why fixed: shared memory requires a known size at compile time
+// Размеры полей (фиксированные для простоты)
+// Почему фиксированные: общая память требует известного размера во время
+// компиляции
 #define KEY_SIZE 64
 #define VALUE_SIZE 256
 
 // ============================================================================
-// DATA STRUCTURES
+// СТРУКТУРЫ ДАННЫХ
 // ============================================================================
 
 /**
- * Structure for a single KV pair
+ * Структура для одной пары ключ-значение
  *
- * Contains key, value, and last update timestamp.
- * All fields have fixed sizes for shared memory operation.
+ * Содержит ключ, значение и временную метку последнего обновления.
+ * Все поля имеют фиксированный размер для работы в общей памяти.
  */
 typedef struct {
-  char key[KEY_SIZE];     // Key (string, max KEY_SIZE-1 characters + '\0')
-  char value[VALUE_SIZE]; // Value (string, max VALUE_SIZE-1 characters + '\0')
-  time_t timestamp;       // Last update time (Unix timestamp)
+  char key[KEY_SIZE];     // Ключ (строка, макс. KEY_SIZE-1 символов + '\0')
+  char value[VALUE_SIZE]; // Значение (строка, макс. VALUE_SIZE-1 символов +
+                          // '\0')
+  time_t timestamp; // Время последнего обновления (Unix timestamp)
 } kv_pair_t;
 
 /**
- * Main shared memory structure
+ * Основная структура в общей памяти
  *
- * Contains:
- * - KV pair table (fixed array)
- * - Semaphore for inter-process synchronization
- * - Data version for tracking changes
- * - Entry counter for table traversal optimization
+ * Содержит:
+ * - Таблицу пар ключ-значение (фиксированный массив)
+ * - Семафор для межпроцессной синхронизации
+ * - Версию данных для отслеживания изменений
+ * - Счетчик записей для оптимизации обхода таблицы
  *
- * Important: the size of this structure must be known at compile time!
+ * Важно: размер этой структуры должен быть известен во время компиляции!
  */
 typedef struct {
-  kv_pair_t kv_table[MAX_ENTRIES]; // KV pair table
-  sem_t sem; // Semaphore for synchronization (shared between processes)
-  unsigned int version;     // Data version (incremented on every change)
-  unsigned int entry_count; // Current number of non-empty entries in the table
+  kv_pair_t kv_table[MAX_ENTRIES]; // Таблица пар ключ-значение
+  sem_t sem;            // Семафор для синхронизации (общий для процессов)
+  unsigned int version; // Версия данных (инкрементируется при каждом изменении)
+  unsigned int entry_count; // Текущее количество непустых записей в таблице
 } shared_memory_kv_store_t;
 
 // ============================================================================
-// FUNCTIONS FOR SHARED MEMORY KV STORE
+// ФУНКЦИИ ДЛЯ РАБОТЫ С KV-ХРАНИЛИЩЕМ В ОБЩЕЙ ПАМЯТИ
 // ============================================================================
 
 /**
- * Creates a new shared memory object for the KV store
+ * Создает новый объект общей памяти для KV-хранилища
  *
- * @param shared_memory_file_descriptor_out Pointer to return the shared memory
- * file descriptor
- * @return Pointer to shared_memory_kv_store_t structure in shared memory, or
- * NULL on error
+ * @param shared_memory_file_descriptor_out Указатель для возврата дескриптора
+ * файла общей памяти
+ * @return Указатель на структуру shared_memory_kv_store_t в общей памяти, или
+ * NULL на случай ошибки
  */
 shared_memory_kv_store_t *
 shared_memory_kv_create(int *shared_memory_file_descriptor_out);
 
 /**
- * Opens an existing shared memory object for the KV store
+ * Открывает существующий объект общей памяти для KV-хранилища
  *
- * @param shared_memory_file_descriptor_out Pointer to return the shared memory
- * file descriptor
- * @return Pointer to shared_memory_kv_store_t structure in shared memory, or
- * NULL on error
+ * @param shared_memory_file_descriptor_out Указатель для возврата дескриптора
+ * файла общей памяти
+ * @return Указатель на структуру shared_memory_kv_store_t в общей памяти, или
+ * NULL на случай ошибки
  */
 shared_memory_kv_store_t *
 shared_memory_kv_open(int *shared_memory_file_descriptor_out);
 
 /**
- * Destroys the shared memory object and releases resources
+ * Уничтожает объект общей памяти и освобождает ресурсы
  *
- * @param shared_memory_file_descriptor Shared memory file descriptor
- * @param store Pointer to the structure in shared memory (for munmap)
+ * @param shared_memory_file_descriptor Дескриптор файла общей памяти
+ * @param store Указатель на структуру в общей памяти (для munmap)
  */
 void shared_memory_kv_destroy(int shared_memory_file_descriptor,
                               shared_memory_kv_store_t *store);
