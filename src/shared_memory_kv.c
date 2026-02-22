@@ -213,3 +213,90 @@ int shared_memory_kv_unlink(void) {
   }
   return 0;
 }
+
+/**
+ * Sets (adds or updates) a key-value pair in the store
+ *
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @param value Value string (max VALUE_SIZE-1 characters)
+ * @return 0 on success, -1 on error
+ */
+int shared_memory_kv_set(shared_memory_kv_store_t *store, const char *key,
+                         const char *value) {
+  // Step 1: Validate input parameters
+  if (store == NULL || key == NULL || value == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // Step 2: Check key and value lengths
+  // strnlen returns the length of the string, but not more than the limit
+  // If length >= KEY_SIZE, it means the string is too long (no space for '\0')
+  size_t key_len = strnlen(key, KEY_SIZE);
+  size_t value_len = strnlen(value, VALUE_SIZE);
+
+  if (key_len >= KEY_SIZE) {
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+
+  if (value_len >= VALUE_SIZE) {
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+
+  // Step 3: Lock semaphore for exclusive access
+  // sem_wait decrements the semaphore value (blocks if value is 0)
+  // This ensures only one process can modify the store at a time
+  // Critical for IPC: without this, we could have race conditions
+  if (sem_wait(&store->sem) == -1) {
+    perror("sem_wait failed");
+    return -1;
+  }
+
+  // Step 4: Search for existing key in the table
+  // We need to find if the key already exists to update it,
+  // or find a free slot to add a new entry
+  int found_index_key = -1;  // Index of found key, -1 if not found
+  int found_index_free = -1;    // Index of first free slot, -1 if table is full
+
+  for (int i = 0; i < MAX_ENTRIES; i++) {
+    // Check if this slot has the key we're looking for
+    // strncmp compares strings, returns 0 if they match
+    if (store->kv_table[i].key[0] != '\0' &&
+        strncmp(store->kv_table[i].key, key, KEY_SIZE) == 0) {
+      found_index_key = i;
+      break; // Found existing key, no need to continue searching
+    }
+
+    // Track first free slot (empty key means slot is free)
+    if (found_index_free == -1 && store->kv_table[i].key[0] == '\0') {
+      found_index_free = i;
+    }
+  }
+
+  // Step 5: Determine which slot to use
+  int target_index;
+  int is_new_entry = 0; // Flag: 1 if adding new entry, 0 if updating existing
+
+  if (found_index_key != -1) {
+    // Key exists, update existing entry
+    target_index = found_index_key;
+    is_new_entry = 0;
+  } else if (found_index_free != -1) {
+    // Key doesn't exist, but we have a free slot
+    target_index = found_index_free;
+    is_new_entry = 1;
+  } else {
+    // Key doesn't exist AND table is full
+    // Unlock semaphore before returning error
+    sem_post(&store->sem);
+    errno = ENOSPC;
+    return -1;
+  }
+
+  // TODO: Next step - write key and value to the target slot
+  // TODO: After all operations - unlock semaphore with sem_post() before return
+  return 0;
+}

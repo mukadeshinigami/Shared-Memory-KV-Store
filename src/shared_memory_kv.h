@@ -1,6 +1,12 @@
 #ifndef SHM_KV_H
 #define SHM_KV_H
 
+// Define POSIX feature test macros for POSIX functions
+// This enables strnlen, ftruncate, and other POSIX functions
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 // Required header files for shared memory and synchronization
 #include <errno.h>     // errno
 #include <fcntl.h>     // O_CREAT, O_RDWR, O_RDONLY
@@ -113,5 +119,17 @@ void shared_memory_kv_destroy(int shared_memory_file_descriptor,
  * called shared_memory_kv_destroy()
  */
 int shared_memory_kv_unlink(void);
+
+/**
+ * Sets (adds or updates) a key-value pair in the store
+ * 
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @param value Value string (max VALUE_SIZE-1 characters)
+ * @return 0 on success, -1 on error (errno set: EINVAL for invalid params, 
+ *         ENOSPC if table is full, ENAMETOOLONG if key/value too long)
+ */
+int shared_memory_kv_set(shared_memory_kv_store_t *store, const char *key,
+                         const char *value);
 
 #endif // SHM_KV_H
