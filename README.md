@@ -1,63 +1,64 @@
 # Shared Memory KV Store
 
-Учебный проект по реализации межпроцессного взаимодействия (IPC) через POSIX Shared Memory на языке C.
+Educational project implementing Inter-Process Communication (IPC) using POSIX Shared Memory in C.
 
-## Описание
+## Description
 
-Проект реализует key-value хранилище, использующее разделяемую память (shared memory) для обмена данными между процессами. Хранилище поддерживает синхронизацию доступа через семафоры и отслеживание версий данных.
+This project implements a key-value store using shared memory for data exchange between processes. The store supports access synchronization through semaphores and data version tracking.
 
-## Технологии
+## Technologies
 
-- **Язык**: C11
-- **IPC механизм**: POSIX Shared Memory (`shm_open`, `mmap`)
-- **Синхронизация**: POSIX Semaphores (`sem_init`, `sem_wait`, `sem_post`)
-- **Компилятор**: GCC
+- **Language**: C11
+- **IPC mechanism**: POSIX Shared Memory (`shm_open`, `mmap`)
+- **Synchronization**: POSIX Semaphores (`sem_init`, `sem_wait`, `sem_post`)
+- **Compiler**: GCC
 
-## Структура проекта
+## Project Structure
 
 ```
 .
 ├── src/
-│   ├── shared_memory_kv.h    # Заголовочный файл с API
-│   └── shared_memory_kv.c    # Реализация функций
-├── build/                     # Директория для скомпилированных файлов
+│   ├── shared_memory_kv.h    # Header file with API
+│   └── shared_memory_kv.c    # Function implementations
+├── build/                     # Directory for compiled files
 └── README.md
 ```
 
 ## API
 
-### Структуры данных
+### Data Structures
 
-- `kv_pair_t` - структура для одной пары ключ-значение
-- `shared_memory_kv_store_t` - основная структура хранилища в shared memory
+- `kv_pair_t` - structure for a single key-value pair
+- `shared_memory_kv_store_t` - main store structure in shared memory
 
-### Функции
+### Functions
 
-- `shared_memory_kv_create()` - создание нового shared memory объекта
-- `shared_memory_kv_open()` - открытие существующего shared memory объекта
-- `shared_memory_kv_destroy()` - уничтожение shared memory объекта и освобождение ресурсов
+- `shared_memory_kv_create()` - creates a new shared memory object
+- `shared_memory_kv_open()` - opens an existing shared memory object
+- `shared_memory_kv_destroy()` - destroys shared memory object and releases resources
+- `shared_memory_kv_unlink()` - unlinks (removes) shared memory object from system
 
-## Ограничения
+## Limitations
 
-- Максимальное количество записей: `MAX_ENTRIES` (10)
-- Максимальный размер ключа: `KEY_SIZE - 1` (63 символа)
-- Максимальный размер значения: `VALUE_SIZE - 1` (255 символов)
+- Maximum number of entries: `MAX_ENTRIES` (10)
+- Maximum key size: `KEY_SIZE - 1` (63 characters)
+- Maximum value size: `VALUE_SIZE - 1` (255 characters)
 
-## Требования
+## Requirements
 
-- Linux/Unix система с поддержкой POSIX Shared Memory
-- GCC компилятор
-- Стандартная библиотека C (C11)
+- Linux/Unix system with POSIX Shared Memory support
+- GCC compiler
+- Standard C library (C11)
 
-## Компиляция
+## Compilation
 
 ```bash
-gcc -std=c11 -Wall -Wextra -o build/kv_store src/shared_memory_kv.c
+gcc -std=c11 -Wall -Wextra -c src/shared_memory_kv.c -o build/shared_memory_kv.o
 ```
 
-## Использование
+## Usage
 
-### Создание shared memory объекта
+### Creating a shared memory object
 
 ```c
 #include "shared_memory_kv.h"
@@ -66,30 +67,59 @@ int shm_fd;
 shared_memory_kv_store_t *store = shared_memory_kv_create(&shm_fd);
 
 if (store == NULL) {
-    // Обработка ошибки
+    // Error handling
     return 1;
 }
 
-// Использование store...
+// Use store...
 
-// Очистка
+// Cleanup
 shared_memory_kv_destroy(shm_fd, store);
 ```
 
-## Важные замечания
+### Opening an existing shared memory object
 
-1. **Очистка ресурсов**: Всегда вызывайте `shared_memory_kv_destroy()` после использования для корректного освобождения ресурсов
-2. **Синхронизация**: Используйте семафор `store->sem` для синхронизации доступа между процессами
-3. **Размер shared memory**: Размер структуры должен быть известен на этапе компиляции
+```c
+int shm_fd;
+shared_memory_kv_store_t *store = shared_memory_kv_open(&shm_fd);
 
-## Статус разработки
+if (store == NULL) {
+    // Error handling (object may not exist)
+    return 1;
+}
 
-- ✅ `shared_memory_kv_create()` - реализовано
-- ⏳ `shared_memory_kv_open()` - в разработке
-- ⏳ `shared_memory_kv_destroy()` - в разработке
-- ⏳ Функции для работы с KV парами (get, set, delete) - в разработке
+// Use store...
 
-## Лицензия
+// Cleanup
+shared_memory_kv_destroy(shm_fd, store);
+```
 
-Учебный проект.
+### Unlinking shared memory object (producer only)
 
+```c
+// Should be called only by the creator process (producer)
+if (shared_memory_kv_unlink() == -1) {
+    perror("Failed to unlink shared memory");
+}
+```
+
+## Important Notes
+
+1. **Resource cleanup**: Always call `shared_memory_kv_destroy()` after use to properly release resources
+2. **Synchronization**: Use semaphore `store->sem` for access synchronization between processes
+3. **Shared memory size**: Structure size must be known at compile time
+4. **Unlinking**: Only the creator process (producer) should call `shared_memory_kv_unlink()`
+
+## Development Status
+
+- ✅ `shared_memory_kv_create()` - implemented
+- ✅ `shared_memory_kv_open()` - implemented
+- ✅ `shared_memory_kv_destroy()` - implemented
+- ✅ `shared_memory_kv_unlink()` - implemented
+- ⏳ Functions for working with KV pairs (get, set, delete) - in development
+- ⏳ `producer.c` - in development
+- ⏳ `consumer.c` - in development
+
+## License
+
+Educational project.
