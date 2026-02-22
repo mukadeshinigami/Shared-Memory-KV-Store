@@ -139,11 +139,11 @@ shared_memory_kv_create(int *shared_memory_file_descriptor_out) {
  * NULL на случай ошибки
  */
 shared_memory_kv_store_t * shared_memory_kv_open(int *shared_memory_file_descriptor_out) {
-  int shared_memory_file_descriptor = shm_open(SHM_NAME, O_RDWR, S_IRUSR | S_IWUSR);
+  int shared_memory_file_descriptor = shm_open(SHM_NAME, O_RDWR, 0);
 
   if (shared_memory_file_descriptor == -1) {
     perror("shm_open failed");
-    return NULL;
+    return NULL;  
   }
 
   if (shared_memory_file_descriptor_out != NULL) {
@@ -159,3 +159,37 @@ shared_memory_kv_store_t * shared_memory_kv_open(int *shared_memory_file_descrip
 
   return store;
 }
+
+/**
+ * Destroys the shared memory object and frees resources
+ *
+ * @param shared_memory_file_descriptor File descriptor of shared memory
+ * @param store Pointer to mapped shared memory region
+ */
+void shared_memory_kv_destroy(int shared_memory_file_descriptor, shared_memory_kv_store_t *store) {
+    // Step 1: Unmap shared memory from process address space
+    // Check for NULL pointer before using it
+    if (store != NULL) {
+        if (munmap(store, sizeof(shared_memory_kv_store_t)) == -1) {
+            perror("munmap failed");
+            // Continue cleanup even if munmap fails
+        }
+    }
+
+    // Step 2: Close file descriptor
+    // Check for invalid descriptor before using it
+    if (shared_memory_file_descriptor != -1) {
+        if (close(shared_memory_file_descriptor) == -1) {
+            perror("close failed");
+        }
+    }
+
+    // Note: We do NOT call sem_destroy() here because:
+    // - Semaphore is in shared memory and will be destroyed when object is unlinked
+    // - Multiple processes should not destroy the same semaphore
+    //
+    // Note: We do NOT call shm_unlink() here because:
+    // - Only the creator (producer) should unlink the object
+    // - shm_unlink() should be called separately by producer when shutting down
+}
+    
