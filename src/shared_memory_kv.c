@@ -296,7 +296,26 @@ int shared_memory_kv_set(shared_memory_kv_store_t *store, const char *key,
     return -1;
   }
 
-  // TODO: Next step - write key and value to the target slot
-  // TODO: After all operations - unlock semaphore with sem_post() before return
+  strncpy(store->kv_table[target_index].key, key, KEY_SIZE - 1);
+  store->kv_table[target_index].key[KEY_SIZE - 1] = '\0';
+
+  strncpy(store->kv_table[target_index].value, value, VALUE_SIZE - 1) ;
+  store->kv_table[target_index].value[VALUE_SIZE - 1] = '\0';
+
+  store->kv_table[target_index].timestamp = time(NULL);
+
+  // Step 6: Update entry count and version
+  store->version++;
+
+  if (is_new_entry) {
+    store->entry_count++;
+  }
+
+  // Step 7: Unlock semaphore
+  if (sem_post(&store->sem) == -1) {
+    perror("sem_post failed");
+  }
+  
+
   return 0;
 }
