@@ -132,4 +132,27 @@ int shared_memory_kv_unlink(void);
 int shared_memory_kv_set(shared_memory_kv_store_t *store, const char *key,
                          const char *value);
 
+/**
+ * Gets a value from the store
+ * 
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @param value_out Pointer to return the value (max VALUE_SIZE-1 characters)
+ * @return 0 on success, -1 on error (errno set: EINVAL for invalid params, 
+ *         ENOSPC if table is full, ENAMETOOLONG if key/value too long)
+ */
+int shared_memory_kv_get(shared_memory_kv_store_t *store, const char *key,
+                     char *value_out);
+                        
+/**
+ * Deletes a key-value pair from the store
+ * 
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @return 0 on success, -1 on error (errno set: EINVAL for invalid params, 
+ *         ENOSPC if table is full, ENAMETOOLONG if key/value too long)
+ */
+int shared_memory_kv_delete(shared_memory_kv_store_t *store, const char *key);
+
+
 #endif // SHM_KV_H

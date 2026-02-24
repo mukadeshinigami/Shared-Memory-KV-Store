@@ -316,6 +316,71 @@ int shared_memory_kv_set(shared_memory_kv_store_t *store, const char *key,
     perror("sem_post failed");
   }
   
-
   return 0;
+}
+
+/**
+ * Gets a value from the store by key
+ * 
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @param value_out Pointer to return the value (max VALUE_SIZE-1 characters)
+ * @return 0 on success, -1 on error (errno set: EINVAL for invalid params, 
+ *         ENOSPC if table is full, ENAMETOOLONG if key/value too long)
+ */
+
+int shared_memory_kv_get(shared_memory_kv_store_t *store,
+  const char *key,
+  char *value_out) {
+
+  // Step 1: Validate input parameters
+  if (store == NULL || key == NULL || value_out == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // Step 2: Check key length
+  size_t key_len = strnlen(key, KEY_SIZE);
+  if (key_len >= KEY_SIZE) {
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+
+  // Step 3: Lock semaphore for exclusive access
+  if (sem_wait(&store->sem) == -1) {
+    perror("sem_wait failed");
+    return -1;
+  }
+
+  // Step 4: Search for the key in the table
+  int found_index = -1;
+  for (int i = 0; i < MAX_ENTRIES; i++) {
+    if (store->kv_table[i].key[0] != '\0' &&
+        strncmp(store->kv_table[i].key, key, KEY_SIZE) == 0) {
+      found_index = i;
+      break;
+    }
+  }
+
+  // Step 5: Handle result - copy value or return error
+  if (found_index == -1) {
+    // Key not found
+    sem_post(&store->sem); // Unlock before returning error
+    errno = ENOENT;
+    return -1;
+  }
+
+  // Key found - copy value to output buffer
+  // Use strncpy with explicit null termination for safety
+  strncpy(value_out, store->kv_table[found_index].value, VALUE_SIZE - 1);
+  value_out[VALUE_SIZE - 1] = '\0';
+
+  // Step 6: Unlock semaphore
+  if (sem_post(&store->sem) == -1) {
+    perror("sem_post failed");
+    // Data was already copied, so we return success
+    return 0;
+  }
+
+  return 0; // Success
 }
