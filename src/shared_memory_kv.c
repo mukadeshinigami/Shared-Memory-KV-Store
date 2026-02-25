@@ -382,5 +382,65 @@ int shared_memory_kv_get(shared_memory_kv_store_t *store,
     return 0;
   }
 
-  return 0; // Success
+  return 0;
+}
+
+/**
+ * Deletes a key-value pair from the store
+ * 
+ * @param store Pointer to shared memory KV store
+ * @param key Key string (max KEY_SIZE-1 characters)
+ * @return 0 on success, -1 on error
+ */
+int shared_memory_kv_delete(shared_memory_kv_store_t *store, const char *key) {
+
+  // Step 1: Validate input parameters
+  if (store == NULL || key == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // Step 2: Check key length
+  size_t key_len = strnlen(key, KEY_SIZE);
+  if (key_len >= KEY_SIZE) {
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+  // Step 3: Lock semaphore for exclusive access
+  if (sem_wait(&store->sem) == -1) {
+    perror("sem_wait failed");
+    return -1;
+  }
+
+  // Step 4: Search for the key in the table
+  int found_index = -1;
+  for (int i = 0; i < MAX_ENTRIES; i++) {
+    if (store->kv_table[i].key[0] != '\0' &&
+        strncmp(store->kv_table[i].key, key, KEY_SIZE) == 0) {
+      found_index = i;
+      break;
+    }
+  }
+  
+  // Step 5: Handle result - delete key or return error
+  if (found_index == -1) {
+    sem_post(&store->sem);
+    errno = ENOENT;
+    return -1;
+  }
+
+  // Step 6: Delete key
+  store->kv_table[found_index].key[0] = '\0';
+  store->kv_table[found_index].value[0] = '\0';
+  store->kv_table[found_index].timestamp = 0;
+  
+  store->version++;
+  store->entry_count--;
+
+  if (sem_post(&store->sem) == -1) {
+    perror("sem_post failed");
+    return 0;
+  }
+
+  return 0;
 }
