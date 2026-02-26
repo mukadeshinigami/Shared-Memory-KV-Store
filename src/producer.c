@@ -62,19 +62,20 @@ int main(void) {
   printf("Producer: Shared memory created successfully\n");
   printf("Producer: Writing key-value pairs...\n\n");
 
-  // Step 2: Write some key-value pairs to the store
+  // Step 2: Write system metrics to the store
+  // These represent realistic system monitoring data
   struct {
     const char *key;
     const char *value;
   } test_data[] = {
-      {"username", "john_doe"},
-      {"email", "john@example.com"},
-      {"age", "26"},
-      {"city", "New York"},
-      {"status", "active"},
-      {"score", "123"},
-      {"level", "5"},
-      {"role", "admin"},
+      {"cpu_usage", "45.2"},
+      {"memory_usage", "67.8"},
+      {"disk_usage", "23.5"},
+      {"network_rx", "1024"},
+      {"network_tx", "2048"},
+      {"uptime", "86400"},
+      {"process_count", "127"},
+      {"load_avg", "1.25"},
   };
 
   size_t num_pairs = sizeof(test_data) / sizeof(test_data[0]);

@@ -78,8 +78,8 @@ int main(void) {
   // Step 2: Read key-value pairs in a loop
   // This allows us to see updates if producer modifies data
   const char *keys_to_read[] = {
-      "username", "email", "age", "city", "status",
-      "score",    "level", "role",
+      "cpu_usage", "memory_usage", "disk_usage", "network_rx",
+      "network_tx", "uptime", "process_count", "load_avg",
   };
   size_t num_keys = sizeof(keys_to_read) / sizeof(keys_to_read[0]);
 
