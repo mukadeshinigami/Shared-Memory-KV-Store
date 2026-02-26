@@ -34,6 +34,10 @@ void cleanup(void) {
 }
 
 int main(void) {
+  // Clean up any existing shared memory object from previous runs
+  // This allows producer to restart without errors if previous run didn't cleanup properly
+  shared_memory_kv_unlink(); // Ignore errors (object might not exist)
+
   // Register signal handler for graceful shutdown
   if (signal(SIGINT, signal_handler) == SIG_ERR) {
     perror("Failed to register signal handler");
@@ -65,10 +69,10 @@ int main(void) {
   } test_data[] = {
       {"username", "john_doe"},
       {"email", "john@example.com"},
-      {"age", "25"},
+      {"age", "26"},
       {"city", "New York"},
       {"status", "active"},
-      {"score", "100"},
+      {"score", "123"},
       {"level", "5"},
       {"role", "admin"},
   };
