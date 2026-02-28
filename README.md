@@ -1,33 +1,47 @@
-# Shared Memory KV Store
+# 🚀 Shared Memory KV Store
 
 Educational project implementing Inter-Process Communication (IPC) using POSIX Shared Memory in C.
 
-## Description
+## 📖 Description
 
 This project implements a key-value store using shared memory for data exchange between processes. The store supports access synchronization through semaphores and data version tracking.
 
-## Technologies
+The project consists of three main components:
+- **Core Library** 📚 - C library for shared memory operations
+- **API Server** 🌐 - FastAPI REST server for web access
+- **Frontend** 🎨 - Next.js web interface for visualization
 
-- **Language**: C11
-- **IPC mechanism**: POSIX Shared Memory (`shm_open`, `mmap`)
-- **Synchronization**: POSIX Semaphores (`sem_init`, `sem_wait`, `sem_post`)
+## 🛠 Technologies
+
+- **Core**: C11, POSIX Shared Memory (`shm_open`, `mmap`), POSIX Semaphores
+- **Backend**: Python 3.8+, FastAPI, ctypes
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
 - **Compiler**: GCC
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 .
-├── src/
+├── src/                       # Core C library
 │   ├── shared_memory_kv.h    # Header file with API
 │   ├── shared_memory_kv.c    # Function implementations
 │   ├── producer.c            # Producer program (writes data)
 │   └── consumer.c            # Consumer program (reads data)
-├── build/                     # Directory for compiled files
-├── Makefile                   # Build automation
+├── api_server.py             # FastAPI REST server
+├── kv_store_wrapper.py       # Python wrapper for C library
+├── frontend/                 # Next.js web application
+│   ├── src/
+│   │   ├── app/             # Next.js app directory
+│   │   ├── components/      # React components
+│   │   └── lib/             # Utilities and API client
+│   └── package.json
+├── build/                    # Directory for compiled files
+├── Makefile                  # Build automation
+├── requirements.txt          # Python dependencies
 └── README.md
 ```
 
-## API
+## 🔌 API
 
 ### Data Structures
 
@@ -47,19 +61,21 @@ This project implements a key-value store using shared memory for data exchange 
 - `shared_memory_kv_get()` - retrieves a value by key
 - `shared_memory_kv_delete()` - removes a key-value pair by key
 
-## Limitations
+## ⚠️ Limitations
 
 - Maximum number of entries: `MAX_ENTRIES` (10)
 - Maximum key size: `KEY_SIZE - 1` (63 characters)
 - Maximum value size: `VALUE_SIZE - 1` (255 characters)
 
-## Requirements
+## 📋 Requirements
 
 - Linux/Unix system with POSIX Shared Memory support
 - GCC compiler
 - Standard C library (C11)
+- Python 3.8+ (for API server)
+- Node.js 18+ (for frontend)
 
-## Compilation
+## 🔨 Compilation
 
 ### Using Makefile (Recommended)
 
@@ -95,9 +111,38 @@ gcc -std=c11 -Wall -Wextra src/producer.c build/shared_memory_kv.o -o build/prod
 gcc -std=c11 -Wall -Wextra src/consumer.c build/shared_memory_kv.o -o build/consumer -lrt -lpthread
 ```
 
-## Usage
+## 🚀 Usage
 
-### Running Producer and Consumer
+### Option 1: Web Interface (Recommended) 🌐
+
+**Step 1: Build the core library**
+```bash
+make libso
+```
+
+**Step 2: Install Python dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+**Step 3: Start API server** (in first terminal)
+```bash
+python3 api_server.py
+```
+Server will run on `http://localhost:8000`
+
+**Step 4: Start Frontend** (in second terminal)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Frontend will run on `http://localhost:3000`
+
+**Step 5: Open browser**
+Navigate to `http://localhost:3000` to use the web interface!
+
+### Option 2: Command Line Programs 💻
 
 The project includes two programs that demonstrate IPC using shared memory:
 
@@ -127,6 +172,27 @@ The consumer will:
 - Press Ctrl+C to exit
 
 **Note:** Producer must be started before consumer, as consumer opens an existing shared memory object.
+
+### Option 3: REST API 📡
+
+See [API_README.md](API_README.md) for detailed API documentation.
+
+Quick start:
+```bash
+# Start API server
+python3 api_server.py
+
+# Get value
+curl http://localhost:8000/get/mykey
+
+# Set value
+curl -X POST http://localhost:8000/set \
+  -H "Content-Type: application/json" \
+  -d '{"key": "mykey", "value": "myvalue"}'
+
+# Get status
+curl http://localhost:8000/status
+```
 
 ### Programmatic Usage
 
@@ -200,15 +266,16 @@ if (shared_memory_kv_unlink() == -1) {
 }
 ```
 
-## Important Notes
+## ⚠️ Important Notes
 
 1. **Resource cleanup**: Always call `shared_memory_kv_destroy()` after use to properly release resources
 2. **Synchronization**: Use semaphore `store->sem` for access synchronization between processes
 3. **Shared memory size**: Structure size must be known at compile time
 4. **Unlinking**: Only the creator process (producer) should call `shared_memory_kv_unlink()`
 
-## Development Status
+## 📊 Development Status
 
+### Core Library ✅
 - ✅ `shared_memory_kv_create()` - implemented
 - ✅ `shared_memory_kv_open()` - implemented
 - ✅ `shared_memory_kv_destroy()` - implemented
@@ -220,8 +287,24 @@ if (shared_memory_kv_unlink() == -1) {
 - ✅ `consumer.c` - implemented
 - ✅ `Makefile` - implemented
 
-**Project Status: Complete** ✅
+### API Server ✅
+- ✅ FastAPI REST server - implemented
+- ✅ Python wrapper (ctypes) - implemented
+- ✅ REST endpoints (GET, POST, status) - implemented
+- ✅ Error handling - implemented
 
-## License
+### Frontend ✅
+- ✅ Next.js web interface - implemented
+- ✅ Real-time data visualization - implemented
+- ✅ Key-value operations UI - implemented
+- ✅ Search functionality - implemented
 
-Educational project.
+**Project Status: Complete** 🎉
+
+## 📄 License
+
+Educational project. 📚
+
+---
+
+Made with ❤️ for learning IPC and shared memory concepts!
