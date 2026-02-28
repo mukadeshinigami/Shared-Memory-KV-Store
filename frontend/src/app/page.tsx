@@ -7,16 +7,17 @@ import { Button } from "@/components/ui/button";
 import { MemoryGrid } from "@/components/MemoryGrid";
 import { SetValueDialog } from "@/components/SetValueDialog";
 import { SearchKey } from "@/components/SearchKey";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useStoreStatus } from "@/lib/hooks";
 
 /**
  * Header component with title and status
  */
-function Header({ 
-  isConnected, 
+function Header({
+  isConnected,
   isFetching,
-  onRefresh 
-}: { 
+  onRefresh
+}: {
   isConnected: boolean;
   isFetching: boolean;
   onRefresh: () => void;
@@ -43,21 +44,23 @@ function Header({
               </p>
             </div>
           </div>
-          
+
           {/* Status and actions */}
           <div className="flex items-center gap-4">
             {/* Connection status */}
             <div className="flex items-center gap-2 text-sm">
-              <div className={`h-2 w-2 rounded-full ${
-                isConnected 
-                  ? "bg-green-400 animate-pulse" 
+              <div className={`h-2 w-2 rounded-full ${isConnected
+                  ? "bg-green-400 animate-pulse"
                   : "bg-red-400"
-              }`} />
+                }`} />
               <span className="text-muted-foreground">
                 {isConnected ? "Connected" : "Disconnected"}
               </span>
             </div>
-            
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* Refresh button */}
             <Button
               variant="ghost"
@@ -68,7 +71,7 @@ function Header({
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
-            
+
             {/* Set Value button */}
             <SetValueDialog onSuccess={onRefresh} />
           </div>
@@ -81,13 +84,13 @@ function Header({
 /**
  * Stats card component
  */
-function StatCard({ 
-  icon: Icon, 
-  label, 
-  value, 
+function StatCard({
+  icon: Icon,
+  label,
+  value,
   subValue,
-  delay = 0 
-}: { 
+  delay = 0
+}: {
   icon: React.ElementType;
   label: string;
   value: string | number;
@@ -129,10 +132,10 @@ function StatCard({
 /**
  * Error state component
  */
-function ErrorState({ 
-  error, 
-  onRetry 
-}: { 
+function ErrorState({
+  error,
+  onRetry
+}: {
   error: string;
   onRetry: () => void;
 }) {
@@ -197,24 +200,24 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background grid-pattern relative">
       {/* Scanline overlay */}
       <div className="scanlines fixed inset-0 pointer-events-none" />
-      
+
       {/* Header */}
-      <Header 
-        isConnected={isConnected} 
+      <Header
+        isConnected={isConnected}
         isFetching={isFetching}
         onRefresh={refresh}
       />
-      
+
       {/* Main content */}
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Error state */}
         {error && !isLoading && (
-          <ErrorState 
-            error={error.detail || error.message} 
+          <ErrorState
+            error={error.detail || error.message}
             onRetry={refresh}
           />
         )}
-        
+
         {/* Loading state */}
         {isLoading && (
           <div className="space-y-6">
@@ -222,7 +225,7 @@ export default function Dashboard() {
             <Card className="border-border/50 bg-card/50 h-[400px] animate-pulse" />
           </div>
         )}
-        
+
         {/* Connected state */}
         {!isLoading && status && (
           <>
@@ -248,7 +251,7 @@ export default function Dashboard() {
                 delay={0.3}
               />
             </div>
-            
+
             {/* Search */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -257,7 +260,7 @@ export default function Dashboard() {
             >
               <SearchKey />
             </motion.div>
-            
+
             {/* Memory Grid */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -274,7 +277,7 @@ export default function Dashboard() {
           </>
         )}
       </main>
-      
+
       {/* Footer */}
       <footer className="border-t border-border/30 mt-auto">
         <div className="container mx-auto px-4 py-4">
