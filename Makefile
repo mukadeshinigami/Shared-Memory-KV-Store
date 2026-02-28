@@ -16,6 +16,9 @@ CONSUMER_SRC = $(SRC_DIR)/consumer.c
 # Object files
 LIB_OBJ = $(BUILD_DIR)/shared_memory_kv.o
 
+# Shared library
+LIB_SO = $(BUILD_DIR)/libshared_memory_kv.so
+
 # Executables
 PRODUCER = $(BUILD_DIR)/producer
 CONSUMER = $(BUILD_DIR)/consumer
@@ -31,6 +34,12 @@ $(BUILD_DIR):
 $(LIB_OBJ): $(LIB_SRC) $(SRC_DIR)/shared_memory_kv.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $(LIB_SRC) -o $(LIB_OBJ)
 
+# Build shared library (.so) for Python ctypes
+# -fPIC: Position Independent Code (required for shared libraries)
+# -shared: Create shared library instead of executable
+$(LIB_SO): $(LIB_SRC) $(SRC_DIR)/shared_memory_kv.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -fPIC -shared $(LIB_SRC) -o $(LIB_SO) $(LDFLAGS)
+
 # Build producer executable
 $(PRODUCER): $(PRODUCER_SRC) $(LIB_OBJ) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(PRODUCER_SRC) $(LIB_OBJ) -o $(PRODUCER) $(LDFLAGS)
@@ -43,6 +52,7 @@ $(CONSUMER): $(CONSUMER_SRC) $(LIB_OBJ) | $(BUILD_DIR)
 producer: $(PRODUCER)
 consumer: $(CONSUMER)
 lib: $(LIB_OBJ)
+libso: $(LIB_SO)
 
 # Clean build artifacts
 clean:
@@ -52,6 +62,6 @@ clean:
 rebuild: clean all
 
 # Phony targets
-.PHONY: all clean rebuild producer consumer lib
+.PHONY: all clean rebuild producer consumer lib libso
 
 
